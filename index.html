@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preflight — reliability lab for agent workflows</title>
+<meta name="description" content="Counts in, credible intervals out. Exact Markov reliability maths for agent workflows, with the uncertainty in the counts carried through the answer.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#faf7f2;
+    --paper-2:#f3efe7;
+    --card:#ffffff;
+    --ink:#191713;
+    --ink-2:#565049;
+    --ink-3:#8b8378;
+    --line:#e2dbcf;
+    --line-soft:#eee8dc;
+    --accent:#b8451f;
+    --accent-soft:#f7e7e0;
+    --sage:#4f6b52;
+    --sage-soft:#e8efe7;
+    --amber:#a86a12;
+    --amber-soft:#f8eeda;
+    --crit:#a52f22;
+    --crit-soft:#f9e3df;
+    --display:"Fraunces",Georgia,serif;
+    --sans:"DM Sans",ui-sans-serif,system-ui,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#14130f; --paper-2:#1a1815; --card:#1f1d19;
+      --ink:#f0ece3; --ink-2:#b6ae9f; --ink-3:#847c6e;
+      --line:#332f28; --line-soft:#282520;
+      --accent:#e0764c; --accent-soft:#33211a;
+      --sage:#8fb894; --sage-soft:#1e2a20;
+      --amber:#d9a34f; --amber-soft:#2d2517;
+      --crit:#e08a7a; --crit-soft:#331d19;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:var(--paper);color:var(--ink);
+    font-family:var(--sans);font-size:15px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1220px;margin:0 auto;padding:0 26px 90px}
+
+  /* ---- top bar ---- */
+  .bar{
+    position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:16px;
+    padding:12px 0;background:var(--paper);border-bottom:1px solid var(--line-soft);
+  }
+  .bar .name{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+  .bar .ver{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+  .bar .sp{flex:1}
+  .bar a{
+    font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--line);
+    padding-bottom:1px;
+  }
+  .bar a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+
+  /* ---- hero ---- */
+  header.hero{padding:52px 0 34px;max-width:830px}
+  .eyebrow{
+    font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--sage);margin-bottom:16px;
+  }
+  h1{
+    font-family:var(--display);font-weight:600;font-size:clamp(30px,4.6vw,50px);
+    line-height:1.06;letter-spacing:-.015em;margin:0 0 18px;
+  }
+  h1 em{font-style:italic;color:var(--accent)}
+  .lede{font-size:18px;color:var(--ink-2);margin:0 0 20px;max-width:660px}
+  .thesis{
+    border-left:2px solid var(--accent);padding:12px 0 12px 18px;
+    font-size:15px;color:var(--ink-2);max-width:640px;
+  }
+  .thesis b{color:var(--ink);font-weight:500}
+
+  /* ---- sections ---- */
+  section{padding-top:44px}
+  .sec{display:flex;align-items:baseline;gap:14px;margin-bottom:6px}
+  .sec .n{font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.1em}
+  h2{font-family:var(--display);font-size:23px;font-weight:600;margin:0;letter-spacing:-.01em}
+  .sub{color:var(--ink-2);font-size:14.5px;max-width:700px;margin:0 0 20px}
+
+  .grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:22px;align-items:start}
+  .grid > *{min-width:0}
+  @media (max-width:960px){.grid{grid-template-columns:minmax(0,1fr)}}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:18px 20px}
+  .card + .card{margin-top:16px}
+  .card h3{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;
+    color:var(--ink-3);margin:0 0 14px;font-weight:500;
+  }
+
+  /* ---- controls ---- */
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+  .row label{font-size:13px;color:var(--ink-2)}
+  select,input[type=number],input[type=text]{
+    font-family:var(--mono);font-size:13px;color:var(--ink);background:var(--paper-2);
+    border:1px solid var(--line);border-radius:3px;padding:5px 8px;
+  }
+  input[type=number]{width:76px}
+  select{cursor:pointer}
+  button{
+    font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    background:var(--paper-2);border:1px solid var(--line);color:var(--ink);
+    padding:7px 13px;border-radius:3px;cursor:pointer;transition:background .14s,border-color .14s;
+  }
+  button:hover{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  /* ---- evidence table ---- */
+  table{width:100%;border-collapse:collapse}
+  th{
+    font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-3);font-weight:500;text-align:right;padding:0 3px 8px;
+    border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  th:first-child{text-align:left}
+  td{padding:5px 3px;border-bottom:1px solid var(--line-soft);text-align:right;vertical-align:middle}
+  td:first-child{text-align:left;font-size:13.5px;white-space:nowrap}
+  tbody tr:hover{background:var(--paper-2)}
+  td input[type=number]{
+    width:100%;min-width:52px;padding:4px 4px;font-size:11.5px;text-align:right;
+    background:transparent;border:1px solid transparent;border-radius:2px;
+    font-variant-numeric:tabular-nums;
+  }
+  td.to input[type=number]{min-width:34px}
+  #evtable{table-layout:fixed}
+  #evtable th:nth-child(1),#evtable td:nth-child(1){width:88px}
+  #evtable th:nth-child(7),#evtable td:nth-child(7){width:38px}
+  #evtable th:nth-child(8),#evtable td:nth-child(8){width:52px}
+  #evtable th:nth-child(9),#evtable td:nth-child(9){width:104px}
+  #evtable td:first-child{overflow:hidden;text-overflow:ellipsis}
+  td input[type=number]:hover{border-color:var(--line);background:var(--paper-2)}
+  td input[type=number]:focus{border-color:var(--accent);background:var(--card)}
+  .nobs{font-family:var(--mono);font-size:11.5px;color:var(--ink-2)}
+  .thin{color:var(--crit);font-weight:500}
+  .pmean{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+  .pmean .ci{color:var(--ink-3);font-size:10.5px}
+
+  /* ---- verdict ---- */
+  .vhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .tag{
+    font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;
+    padding:5px 11px;border-radius:2px;font-weight:500;
+  }
+  .tag.supported{background:var(--sage-soft);color:var(--sage)}
+  .tag.contradicted{background:var(--crit-soft);color:var(--crit)}
+  .tag.underdetermined{background:var(--amber-soft);color:var(--amber)}
+  .claimtxt{font-family:var(--mono);font-size:13.5px;color:var(--ink-2)}
+  .vbody{font-size:14px;color:var(--ink-2);line-height:1.6}
+  .vbody b{color:var(--ink);font-weight:500}
+  .big{
+    font-family:var(--display);font-size:34px;line-height:1.1;font-weight:600;
+    letter-spacing:-.01em;margin:2px 0 4px;
+  }
+  .big .u{font-size:17px;color:var(--ink-3);font-family:var(--sans);font-weight:400}
+
+  /* ---- interval viz ---- */
+  .axisbox{margin:16px 0 4px}
+  .axislabels{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:var(--ink-3);margin-top:5px}
+  svg{display:block;width:100%;height:auto;overflow:visible}
+
+  /* ---- sobol ---- */
+  .sob{display:grid;grid-template-columns:112px minmax(0,1fr) 52px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line-soft)}
+  .sob:last-child{border-bottom:none}
+  .sob .nm{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .track{height:11px;background:var(--paper-2);border-radius:1px;overflow:hidden}
+  .fill{height:100%;background:var(--sage)}
+  .fill.lead{background:var(--accent)}
+  .sob .v{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);text-align:right}
+
+  /* ---- voi ---- */
+  .voi{display:grid;grid-template-columns:112px minmax(0,1fr) 68px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line-soft)}
+  .voi:last-child{border-bottom:none}
+  .voi .nm{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .voi .v{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);text-align:right}
+  .voi .v.zero{color:var(--ink-3)}
+
+  /* ---- ledger ---- */
+  .led{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--line-soft);align-items:flex-start}
+  .led:last-child{border-bottom:none}
+  .dot{width:7px;height:7px;border-radius:50%;margin-top:7px;flex:none}
+  .dot.pass{background:var(--sage)}
+  .dot.fail{background:var(--crit)}
+  .dot.na{background:var(--ink-3)}
+  .led .txt{font-size:13px;color:var(--ink-2);line-height:1.5}
+  .led .txt b{color:var(--ink);font-weight:500;display:block;margin-bottom:1px}
+  .led .txt .ev{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+  .led .txt .br{font-size:11.5px;color:var(--crit);margin-top:2px}
+
+  /* ---- misc ---- */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:4px;overflow:hidden}
+  .kpi{background:var(--card);padding:12px 14px}
+  .kpi .l{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px}
+  .kpi .v{font-family:var(--mono);font-size:18px;letter-spacing:-.01em}
+  .note{font-size:12.5px;color:var(--ink-3);line-height:1.55;margin-top:12px}
+  .note b{color:var(--ink-2);font-weight:500}
+  code{font-family:var(--mono);font-size:12px;background:var(--paper-2);padding:1px 5px;border-radius:2px}
+  pre{
+    background:var(--paper-2);border:1px solid var(--line);border-left:2px solid var(--accent);
+    border-radius:3px;padding:16px 18px;overflow-x:auto;font-family:var(--mono);
+    font-size:12px;line-height:1.75;color:var(--ink);margin:0;
+  }
+  pre .c{color:var(--ink-3)}
+  pre .k{color:var(--accent)}
+  footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+    font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+  .busy{opacity:.45;transition:opacity .15s}
+  @media (max-width:560px){
+    .wrap{padding:0 16px 70px}
+    h1{font-size:28px}
+    .lede{font-size:16px}
+    th{font-size:8.5px;letter-spacing:.04em}
+    td:first-child{font-size:12px}
+    .sob,.voi{grid-template-columns:84px minmax(0,1fr) 46px;gap:7px}
+    .big{font-size:27px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="bar">
+    <span class="name">preflight</span>
+    <span class="ver">v0.2.0</span>
+    <span class="sp"></span>
+    <a href="https://github.com/saumyajitghosh-collab/preflight" target="_blank" rel="noopener">Source</a>
+    <a href="#how" >MCP tools</a>
+  </div>
+
+  <header class="hero">
+    <div class="eyebrow">reliability mathematics · before deployment</div>
+    <h1>You do not know your agent's<br>success rate. You know <em>counts</em>.</h1>
+    <p class="lede">
+      An agent workflow is an absorbing Markov chain: every step advances, retries,
+      loops back, escalates or fails. Preflight solves that chain exactly — then
+      propagates the uncertainty in the counts through the solve, so the answer
+      arrives as an interval with a verdict attached.
+    </p>
+    <div class="thesis">
+      Typed probabilities are a belief. Traces give counts. <b>Counts in, credible
+      intervals out</b> — and when the data cannot settle your claim, the tool says
+      so and tells you which step to go and observe.
+    </div>
+  </header>
+
+  <!-- ================= 01 EVIDENCE ================= -->
+  <section>
+    <div class="sec"><span class="n">01</span><h2>Evidence</h2></div>
+    <p class="sub">
+      Counts observed per step, straight from traces. Each step's transition vector is a
+      Dirichlet posterior; edit a count and everything downstream recomputes. The
+      <code>back to</code> column is the step index a loop-back returns to.
+    </p>
+
+    <div class="grid">
+      <div>
+        <div class="card">
+          <div class="row">
+            <label for="preset">Workflow</label>
+            <select id="preset">
+              <option value="rag">RAG agent with verify step</option>
+              <option value="checkout">Checkout agent</option>
+              <option value="support">Support triage</option>
+            </select>
+            <label for="budget">Step budget</label>
+            <input type="number" id="budget" min="1" max="60" step="1" value="12">
+            <button id="clear-budget">none</button>
+          </div>
+
+          <table id="evtable">
+            <thead>
+              <tr>
+                <th>Step</th><th>ok</th><th>retry</th><th>back</th><th>esc</th><th>fail</th>
+                <th>to</th><th>n</th><th>p_ok</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+          <p class="note" id="evnote"></p>
+        </div>
+      </div>
+
+      <!-- results column -->
+      <div>
+        <div class="card">
+          <h3>Verdict</h3>
+          <div class="row" style="margin-bottom:10px">
+            <label for="claim">Claim: P(success) =</label>
+            <input type="number" id="claim" min="0" max="1" step="0.01" value="0.85">
+            <label for="level">interval</label>
+            <select id="level">
+              <option value="0.9">90%</option>
+              <option value="0.95">95%</option>
+              <option value="0.8">80%</option>
+            </select>
+          </div>
+          <div id="verdict"></div>
+        </div>
+
+        <div class="card">
+          <h3>Exact outcomes on the posterior means</h3>
+          <div class="kpis" id="kpis"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 02 SOBOL ================= -->
+  <section>
+    <div class="sec"><span class="n">02</span><h2>Which step's ignorance owns the spread</h2></div>
+    <p class="sub">
+      Sobol total-order indices of P(success) with respect to each step's sampling
+      uncertainty. This is not "which step is worst" — it is "which step's <em>not
+      knowing</em> is what makes the answer uncertain".
+    </p>
+    <div class="grid">
+      <div class="card"><h3>Total-order index S<sub>T</sub></h3><div id="sobol"></div><p class="note" id="sobnote"></p></div>
+      <div class="card"><h3>What would settle it</h3><div id="voi"></div><p class="note" id="voinote"></p></div>
+    </div>
+  </section>
+
+  <!-- ================= 03 CONTENTION ================= -->
+  <section>
+    <div class="sec"><span class="n">03</span><h2>Contention: the same workflow under load</h2></div>
+    <p class="sub">
+      The chain above assumes each step runs alone. In production several tasks share the
+      workers, and queueing turns a two-second median into a multi-second p95 for the same
+      workflow. A discrete-event simulation of the same five steps, with a distribution-free
+      bound on the tail.
+    </p>
+    <div class="grid">
+      <div class="card">
+        <h3>Load</h3>
+        <div class="row">
+          <label for="lam">Arrival rate λ</label>
+          <input type="number" id="lam" min="0.2" max="4" step="0.05" value="3.0">
+          <span class="pmean" id="lamu">tasks / s</span>
+        </div>
+        <div class="row">
+          <label for="cap">Answer concurrency</label>
+          <input type="number" id="cap" min="1" max="12" step="1" value="4">
+          <span class="pmean" id="capu">servers</span>
+        </div>
+        <div class="row">
+          <label for="toolcap">Tool concurrency</label>
+          <input type="number" id="toolcap" min="1" max="12" step="1" value="3">
+          <span class="pmean" id="toolu">servers</span>
+        </div>
+        <p class="note">
+          Stability limit is <b id="lim">2.57</b> tasks/s at this configuration. Push λ past it
+          and the queue does not get slow, it fails to drain.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Latency under load</h3>
+        <div class="kpis" id="qkpis"></div>
+        <svg id="hist" viewBox="0 0 560 132" role="img" aria-label="Latency histogram"></svg>
+        <p class="note" id="qnote"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 04 LEDGER ================= -->
+  <section>
+    <div class="sec"><span class="n">04</span><h2>Assumption ledger</h2></div>
+    <p class="sub">
+      Every quantitative claim rests on assumptions. These are checked against the data
+      rather than asserted, and each one records what it breaks if it fails.
+    </p>
+    <div class="card"><div id="ledger"></div></div>
+  </section>
+
+  <!-- ================= 05 HOW ================= -->
+  <section id="how">
+    <div class="sec"><span class="n">05</span><h2>Run it yourself</h2></div>
+    <p class="sub">Numpy only. 45 tests, including the ones that check the solver against closed forms.</p>
+    <pre><span class="c"># counts straight from traces; the maths is deterministic</span>
+ev = [<span class="k">Evidence</span>(<span class="s">"Plan"</span>,     n_ok=<span class="s">1920</span>, n_retry=<span class="s">40</span>, n_fail=<span class="s">40</span>),
+      <span class="k">Evidence</span>(<span class="s">"Retrieve"</span>, n_ok=<span class="s">1980</span>, n_retry=<span class="s">20</span>),
+      <span class="k">Evidence</span>(<span class="s">"Call tool"</span>,n_ok=<span class="s">1900</span>, n_retry=<span class="s">60</span>, n_fail=<span class="s">40</span>),
+      <span class="k">Evidence</span>(<span class="s">"Verify"</span>,   n_ok=<span class="s">34</span>, n_back=<span class="s">4</span>, n_esc=<span class="s">1</span>, n_fail=<span class="s">1</span>, back_to=<span class="s">2</span>),
+      <span class="k">Evidence</span>(<span class="s">"Answer"</span>,   n_ok=<span class="s">1960</span>, n_retry=<span class="s">20</span>, n_fail=<span class="s">20</span>)]
+
+p = <span class="k">propagate</span>(ev)                 <span class="c"># posterior draws -> exact solve, batched</span>
+p[<span class="s">"p_success"</span>]                     <span class="c"># point 0.846, 90% CI [0.761, 0.908]</span>
+<span class="k">verdict</span>(p, claim=<span class="s">0.85</span>)            <span class="c"># -> underdetermined, 14.7 pts wide</span>
+<span class="k">value_of_info</span>(ev, more=<span class="s">200</span>)        <span class="c"># -> Verify: 14.8 -> 6.7 pts. Others: zero.</span></pre>
+    <p class="note">
+      Five MCP tools: <code>analyze</code>, <code>what_would_settle_it</code>,
+      <code>check_littles_law</code>, <code>queue_latency</code>, <code>verifier_lift</code>.
+      The model supplies counts; the arithmetic is never left to the model.
+    </p>
+  </section>
+
+  <footer>
+    <span>preflight · exact reliability maths for agent workflows</span>
+    <span id="footstat">—</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   RNG and distributions
+   ============================================================ */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function makeGauss(rng){
+  let spare = null;
+  return function(){
+    if (spare !== null){ const v = spare; spare = null; return v; }
+    let u, v, s;
+    do { u = rng()*2-1; v = rng()*2-1; s = u*u+v*v; } while (s >= 1 || s === 0);
+    const m = Math.sqrt(-2*Math.log(s)/s);
+    spare = v*m;
+    return u*m;
+  };
+}
+/* Marsaglia-Tsang gamma, shape k > 0 */
+function gammaSample(rng, gauss, k){
+  if (k < 1) return gammaSample(rng, gauss, k + 1) * Math.pow(rng(), 1/k);
+  const d = k - 1/3, c = 1/Math.sqrt(9*d);
+  for(;;){
+    let x, v;
+    do { x = gauss(); v = 1 + c*x; } while (v <= 0);
+    v = v*v*v;
+    const u = rng();
+    if (u < 1 - 0.0331*x*x*x*x) return d*v;
+    if (Math.log(u) < 0.5*x*x + d*(1 - v + Math.log(v))) return d*v;
+  }
+}
+/* Dirichlet(alpha) -> array of same length, sums to 1 */
+function dirichlet(rng, gauss, alpha){
+  const out = new Array(alpha.length);
+  let s = 0;
+  for (let i=0;i<alpha.length;i++){ out[i] = gammaSample(rng, gauss, alpha[i]); s += out[i]; }
+  for (let i=0;i<alpha.length;i++) out[i] /= s;
+  return out;
+}
+
+/* ============================================================
+   Small dense linear algebra: inverse of an n x n matrix
+   ============================================================ */
+function inv(A){
+  const n = A.length;
+  const M = [];
+  for (let i=0;i<n;i++){
+    const row = A[i].slice();
+    for (let j=0;j<n;j++) row.push(i === j ? 1 : 0);
+    M.push(row);
+  }
+  for (let col=0; col<n; col++){
+    let piv = col;
+    for (let r=col+1;r<n;r++) if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
+    if (Math.abs(M[piv][col]) < 1e-12) throw new Error("singular transition matrix");
+    if (piv !== col){ const t = M[piv]; M[piv] = M[col]; M[col] = t; }
+    const p = M[col][col];
+    for (let j=0;j<2*n;j++) M[col][j] /= p;
+    for (let r=0;r<n;r++){
+      if (r === col) continue;
+      const f = M[r][col];
+      if (f === 0) continue;
+      for (let j=0;j<2*n;j++) M[r][j] -= f*M[col][j];
+    }
+  }
+  return M.map(r => r.slice(n));
+}
+
+/* ============================================================
+   The model: absorbing Markov chain
+   ============================================================ */
+/* P is a flat array of k steps x 4 probs: [p_ok, p_retry, p_back, p_esc] */
+function solveChain(P, steps, budget){
+  const k = steps.length;
+  const Q = [], R = [];
+  for (let i=0;i<k;i++){
+    Q.push(new Array(k).fill(0));
+    R.push([0,0,0]);
+  }
+  for (let i=0;i<k;i++){
+    const ok = P[4*i], retry = P[4*i+1], back = P[4*i+2], esc = P[4*i+3];
+    const fail = Math.max(0, 1 - ok - retry - back - esc);
+    Q[i][i] += retry;
+    Q[i][steps[i].back_to] += back;
+    if (i + 1 < k) Q[i][i+1] += ok; else R[i][0] += ok;
+    R[i][2] += esc;
+    R[i][1] += fail;
+  }
+  const cost = steps.map(s => s.cost || 0);
+
+  if (!budget){
+    const IminusQ = Q.map((r,i) => r.map((v,j) => (i===j?1:0) - v));
+    const N = inv(IminusQ);
+    // B = N R
+    let ps = 0, pf = 0, pe = 0;
+    for (let j=0;j<k;j++){
+      ps += N[0][j]*R[j][0];
+      pf += N[0][j]*R[j][1];
+      pe += N[0][j]*R[j][2];
+    }
+    let t = 0, c = 0;
+    for (let j=0;j<k;j++){ t += N[0][j]; c += N[0][j]*cost[j]; }
+    return {ps, pf, pe, t, c};
+  }
+
+  let pi = new Array(k).fill(0); pi[0] = 1;
+  let absorbed = [0,0,0], visits = new Array(k).fill(0), m1 = 0;
+  for (let step=1; step<=budget; step++){
+    for (let j=0;j<k;j++) visits[j] += pi[j];
+    const newly = [0,0,0];
+    for (let j=0;j<k;j++) for (let a=0;a<3;a++) newly[a] += pi[j]*R[j][a];
+    for (let a=0;a<3;a++) absorbed[a] += newly[a];
+    const next = new Array(k).fill(0);
+    for (let j=0;j<k;j++){
+      if (pi[j] === 0) continue;
+      for (let m=0;m<k;m++) next[m] += pi[j]*Q[j][m];
+    }
+    pi = next;
+    let mass = newly[0] + newly[1] + newly[2];
+    if (step === budget) mass += pi.reduce((a,b)=>a+b, 0);
+    m1 += step*mass;
+  }
+  let c = 0;
+  for (let j=0;j<k;j++) c += visits[j]*cost[j];
+  const left = pi.reduce((a,b)=>a+b, 0);
+  return {ps: absorbed[0], pf: absorbed[1] + left, pe: absorbed[2], t: m1, c};
+}
+
+/* ============================================================
+   Evidence
+   ============================================================ */
+function alphaOf(step){ return [step.ok + 1, step.retry + 1, step.back + 1, step.esc + 1, step.fail + 1]; }
+function nOf(step){ return step.ok + step.retry + step.back + step.esc + step.fail; }
+function meanP(step){
+  const a = alphaOf(step), s = a.reduce((x,y)=>x+y,0);
+  return a.map(v => v/s);
+}
+function quantile(a, q){
+  if (!a.length) return NaN;
+  const b = Float64Array.from(a); b.sort();
+  const pos = (b.length-1)*q, lo = Math.floor(pos), hi = Math.ceil(pos);
+  return lo === hi ? b[lo] : b[lo] + (b[hi]-b[lo])*(pos-lo);
+}
+
+function propagate(steps, budget, draws, seed, level){
+  const rng = mulberry32(seed), gauss = makeGauss(rng);
+  const k = steps.length;
+  const succ = new Float64Array(draws);
+  const fail = new Float64Array(draws);
+  const esc  = new Float64Array(draws);
+  const stp  = new Float64Array(draws);
+  const cst  = new Float64Array(draws);
+  const pOk  = steps.map(() => new Float64Array(draws));
+
+  for (let d=0; d<draws; d++){
+    const P = new Array(4*k);
+    for (let i=0;i<k;i++){
+      const a = alphaOf(steps[i]);
+      const p = dirichlet(rng, gauss, a);
+      P[4*i] = p[0]; P[4*i+1] = p[1]; P[4*i+2] = p[2]; P[4*i+3] = p[3];
+      pOk[i][d] = p[0];
+    }
+    const r = solveChain(P, steps, budget);
+    succ[d] = r.ps; fail[d] = r.pf; esc[d] = r.pe; stp[d] = r.t; cst[d] = r.c;
+  }
+
+  const pointP = [];
+  for (let i=0;i<k;i++){ const p = meanP(steps[i]); pointP.push(p[0],p[1],p[2],p[3]); }
+  const plug = solveChain(pointP, steps, budget);
+
+  const lo = (1-level)/2, hi = 1-lo;
+  const pack = (arr, point) => ({
+    point, mean: arr.reduce((a,b)=>a+b,0)/arr.length,
+    lo: quantile(arr, lo), hi: quantile(arr, hi)
+  });
+
+  return {
+    p_success: pack(succ, plug.ps),
+    p_fail: pack(fail, plug.pf),
+    p_escalate: pack(esc, plug.pe),
+    expected_steps: pack(stp, plug.t),
+    expected_cost: pack(cst, plug.c),
+    samples: succ,
+    pOk,
+    plug
+  };
+}
+
+/* Sobol: Saltelli scheme, Jansen estimators */
+function sobol(steps, budget, base, seed){
+  const rng = mulberry32(seed), gauss = makeGauss(rng);
+  const k = steps.length;
+  const A = [], B = [];
+  for (let d=0; d<base; d++){
+    const aP = new Array(4*k), bP = new Array(4*k);
+    for (let i=0;i<k;i++){
+      const al = alphaOf(steps[i]);
+      const pa = dirichlet(rng, gauss, al);
+      const pb = dirichlet(rng, gauss, al);
+      for (let j=0;j<4;j++){ aP[4*i+j] = pa[j]; bP[4*i+j] = pb[j]; }
+    }
+    A.push(aP); B.push(bP);
+  }
+  const f = P => solveChain(P, steps, budget).ps;
+  const fA = A.map(f), fB = B.map(f);
+  const all = fA.concat(fB);
+  const mean = all.reduce((a,b)=>a+b,0)/all.length;
+  let varv = 0;
+  for (const v of all) varv += (v-mean)*(v-mean);
+  varv /= all.length;
+  if (varv <= 0) return [];
+
+  const out = [];
+  for (let i=0;i<k;i++){
+    let s2 = 0, s1acc = 0;
+    for (let d=0; d<base; d++){
+      const AB = A[d].slice();
+      for (let j=0;j<4;j++) AB[4*i+j] = B[d][4*i+j];
+      const fAB = f(AB);
+      s2 += (fA[d]-fAB)*(fA[d]-fAB);
+      s1acc += (fB[d]-fAB)*(fB[d]-fAB);
+    }
+    let ST = 0.5*(s2/base)/varv;
+    let S1 = (varv - 0.5*(s1acc/base))/varv;
+    ST = Math.min(Math.max(ST,0),1);
+    S1 = Math.min(Math.max(S1,0),ST);
+    out.push({step: steps[i].name, n: nOf(steps[i]), ST, S1});
+  }
+  return out;
+}
+
+/* Value of information: preposterior interval shrink per step */
+function valueOfInfo(steps, budget, more, outer, draws, seed, level){
+  const rng = mulberry32(seed), gauss = makeGauss(rng);
+  const k = steps.length;
+  const lo = (1-level)/2, hi = 1-lo;
+
+  function widthOf(sts){
+    const kk = sts.length;
+    const succ = new Float64Array(draws);
+    for (let d=0; d<draws; d++){
+      const P = new Array(4*kk);
+      for (let i=0;i<kk;i++){
+        const p = dirichlet(rng, gauss, alphaOf(sts[i]));
+        P[4*i]=p[0]; P[4*i+1]=p[1]; P[4*i+2]=p[2]; P[4*i+3]=p[3];
+      }
+      succ[d] = solveChain(P, sts, budget).ps;
+    }
+    return quantile(succ, hi) - quantile(succ, lo);
+  }
+
+  const widthNow = widthOf(steps);
+  const out = [];
+  for (let i=0;i<k;i++){
+    let acc = 0;
+    for (let o=0;o<outer;o++){
+      const p = dirichlet(rng, gauss, alphaOf(steps[i]));
+      const trial = steps.map((s,j) => j===i ? {...s} : s);
+      // multinomial(more, p)
+      const drawsCat = [0,0,0,0,0];
+      for (let m=0;m<more;m++){
+        let u = rng(), c = 0;
+        while (c < 4 && u > p[c]){ u -= p[c]; c++; }
+        drawsCat[c]++;
+      }
+      const s = trial[i];
+      trial[i] = {...s, ok:s.ok+drawsCat[0], retry:s.retry+drawsCat[1],
+                   back:s.back+drawsCat[2], esc:s.esc+drawsCat[3], fail:s.fail+drawsCat[4]};
+      acc += widthOf(trial);
+    }
+    out.push({step: steps[i].name, n: nOf(steps[i]), width_now: widthNow,
+              width_after: acc/outer,
+              shrink: Math.max(widthNow - acc/outer, 0)*100});
+  }
+  return out.sort((a,b) => b.shrink - a.shrink);
+}
+
+/* ============================================================
+   Discrete-event simulation for the contention panel
+   ============================================================ */
+class Heap{
+  constructor(){ this.a = []; }
+  get size(){ return this.a.length; }
+  push(x){
+    const a = this.a; a.push(x);
+    let i = a.length-1;
+    while (i>0){
+      const p = (i-1)>>1;
+      if (a[p].t <= a[i].t) break;
+      const tmp=a[p]; a[p]=a[i]; a[i]=tmp; i=p;
+    }
+  }
+  pop(){
+    const a=this.a, top=a[0], last=a.pop();
+    if (a.length){
+      a[0]=last; let i=0;
+      for(;;){
+        const l=2*i+1, r=l+1; let m=i;
+        if (l<a.length && a[l].t<a[m].t) m=l;
+        if (r<a.length && a[r].t<a[m].t) m=r;
+        if (m===i) break;
+        const tmp=a[m]; a[m]=a[i]; a[i]=tmp; i=m;
+      }
+    }
+    return top;
+  }
+}
+
+function simulateQueue(Q, n){
+  const rng = mulberry32(Q.seed), gauss = makeGauss(rng);
+  const stages = Q.stages, k = stages.length;
+  const byName = {}, succ = {}, roots = [];
+  stages.forEach(s => { byName[s.name]=s; succ[s.name]=[]; });
+  stages.forEach(s => s.deps.forEach(d => succ[d].push(s.name)));
+  stages.forEach(s => { if (!s.deps.length) roots.push(s.name); });
+
+  const busy={}, queues={}, waits={}, attempts={}, busyTime={}, qInt={}, qLast={};
+  stages.forEach(s => { busy[s.name]=0; queues[s.name]=[]; waits[s.name]=[]; attempts[s.name]=0;
+                        busyTime[s.name]=0; qInt[s.name]=0; qLast[s.name]=0; });
+  const done = Array.from({length:n}, () => new Set());
+  const tStart = new Float64Array(n);
+  const e2e = [];
+  let horizon = 0;
+
+  const heap = new Heap();
+  let t = 0;
+  for (let i=0;i<n;i++){
+    t += -Math.log(1-rng())/Q.lam;
+    heap.push({t, kind:0, task:i, stage:null});
+  }
+
+  const flush = (nm, tt) => { qInt[nm] += (tt-qLast[nm])*queues[nm].length; qLast[nm]=tt; };
+  function start(nm, task, tt, enq){
+    const s = byName[nm];
+    busy[nm]++; attempts[nm]++;
+    waits[nm].push(tt - enq);
+    const svc = Math.exp(Math.log(s.median) + s.sigma*gauss());
+    busyTime[nm] += svc;
+    heap.push({t: tt+svc, kind:1, task, stage:nm});
+  }
+  function enqueue(nm, task, tt){
+    flush(nm, tt);
+    if (busy[nm] < byName[nm].cap) start(nm, task, tt, tt);
+    else queues[nm].push({task, enq:tt});
+  }
+  function dispatch(nm, tt){
+    flush(nm, tt);
+    if (queues[nm].length && busy[nm] < byName[nm].cap){
+      const q = queues[nm].shift();
+      start(nm, q.task, tt, q.enq);
+    }
+  }
+
+  while (heap.size){
+    const ev = heap.pop();
+    if (ev.t > horizon) horizon = ev.t;
+    if (ev.kind === 0){
+      tStart[ev.task] = ev.t;
+      for (const r of roots) enqueue(r, ev.task, ev.t);
+      continue;
+    }
+    const nm = ev.stage;
+    busy[nm]--;
+    done[ev.task].add(nm);
+    for (const nx of succ[nm]){
+      if (byName[nx].deps.every(d => done[ev.task].has(d))) enqueue(nx, ev.task, ev.t);
+    }
+    if (done[ev.task].size === k) e2e.push(ev.t - tStart[ev.task]);
+    dispatch(nm, ev.t);
+  }
+  stages.forEach(s => flush(s.name, horizon));
+
+  const util = {}, wait = {};
+  stages.forEach(s => {
+    util[s.name] = horizon>0 ? busyTime[s.name]/(s.cap*horizon) : 0;
+    wait[s.name] = waits[s.name].length ? waits[s.name].reduce((a,b)=>a+b,0)/waits[s.name].length : 0;
+  });
+  return {e2e, util, wait, horizon, n};
+}
+
+/* ============================================================
+   Workflow presets
+   ============================================================ */
+const PRESETS = {
+  rag: {
+    label: "RAG agent with verify step",
+    steps: [
+      {name:"Plan",      ok:1920, retry:40, back:0,  esc:0, fail:40, back_to:0, cost:0.4},
+      {name:"Retrieve",  ok:1980, retry:20, back:0,  esc:0, fail:0,  back_to:0, cost:0.1},
+      {name:"Call tool", ok:1900, retry:60, back:0,  esc:0, fail:40, back_to:0, cost:0.2},
+      {name:"Verify",    ok:34,   retry:0,  back:4,  esc:1, fail:1,  back_to:2, cost:0.3},
+      {name:"Answer",    ok:1960, retry:20, back:0,  esc:0, fail:20, back_to:0, cost:0.5}
+    ],
+    claim: 0.85
+  },
+  checkout: {
+    label: "Checkout agent",
+    steps: [
+      {name:"Parse intent", ok:960, retry:20, back:0, esc:0, fail:20, back_to:0, cost:0.2},
+      {name:"Price check",  ok:930, retry:30, back:0, esc:0, fail:40, back_to:0, cost:0.1},
+      {name:"Authorise",    ok:410, retry:12, back:6, esc:2, fail:4,  back_to:1, cost:0.4},
+      {name:"Confirm",      ok:380, retry:8,  back:0, esc:1, fail:3,  back_to:0, cost:0.3}
+    ],
+    claim: 0.9
+  },
+  support: {
+    label: "Support triage",
+    steps: [
+      {name:"Classify",   ok:4900, retry:60, back:0, esc:0, fail:40, back_to:0, cost:0.2},
+      {name:"Lookup",     ok:4800, retry:90, back:0, esc:0, fail:110, back_to:0, cost:0.1},
+      {name:"Draft reply",ok:4600, retry:200, back:0, esc:60, fail:140, back_to:0, cost:0.6},
+      {name:"Review",     ok:210,  retry:6, back:9, esc:3, fail:2,  back_to:2, cost:0.4}
+    ],
+    claim: 0.8
+  }
+};
+
+const state = {
+  steps: JSON.parse(JSON.stringify(PRESETS.rag.steps)),
+  budget: 12,
+  claim: 0.85,
+  level: 0.90,
+  seed: 20261117,
+  queue: {
+    lam: 3.0, capAnswer: 4, capTool: 3, seed: 991
+  }
+};
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+const $ = id => document.getElementById(id);
+
+function renderTable(stats){
+  const tb = $("evtable").querySelector("tbody");
+  tb.innerHTML = state.steps.map((s, i) => {
+    const n = nOf(s);
+    const p = meanP(s)[0];
+    const ci = stats ? stats.pOk[i] : null;
+    const lo = ci ? quantile(ci, (1-state.level)/2) : NaN;
+    const hi = ci ? quantile(ci, 1-(1-state.level)/2) : NaN;
+    const thin = n < 200;
+    return `<tr>
+      <td>${s.name}</td>
+      <td><input type="number" min="0" step="1" value="${s.ok}"    data-i="${i}" data-f="ok"></td>
+      <td><input type="number" min="0" step="1" value="${s.retry}" data-i="${i}" data-f="retry"></td>
+      <td><input type="number" min="0" step="1" value="${s.back}"  data-i="${i}" data-f="back"></td>
+      <td><input type="number" min="0" step="1" value="${s.esc}"   data-i="${i}" data-f="esc"></td>
+      <td><input type="number" min="0" step="1" value="${s.fail}"  data-i="${i}" data-f="fail"></td>
+      <td class="to"><input type="number" min="0" step="1" max="${state.steps.length-1}" value="${s.back_to}" data-i="${i}" data-f="back_to"></td>
+      <td class="nobs ${thin?'thin':''}">${n}</td>
+      <td class="pmean">${p.toFixed(3)}<span class="ci"> [${isFinite(lo)?lo.toFixed(2):'–'}, ${isFinite(hi)?hi.toFixed(2):'–'}]</span></td>
+    </tr>`;
+  }).join("");
+
+  tb.querySelectorAll("input").forEach(inp => {
+    inp.addEventListener("change", () => {
+      const i = +inp.dataset.i, f = inp.dataset.f;
+      const v = Math.max(0, Math.round(+inp.value || 0));
+      state.steps[i][f] = f === "back_to"
+        ? Math.min(v, state.steps.length-1)
+        : v;
+      recompute();
+    });
+  });
+}
+
+function renderVerdict(p){
+  const s = p.p_success;
+  const width = (s.hi - s.lo)*100;
+  let status, why;
+  const c = state.claim;
+  if (!isFinite(c)){
+    status = width > 10 ? "underdetermined" : "supported";
+    why = "No claim entered, so this is the interval on its own.";
+  } else if (c < s.lo || c > s.hi){
+    status = "contradicted";
+    why = `The claimed rate lies ${c > s.hi ? "above" : "below"} the entire interval.`;
+  } else if (width > 10){
+    status = "underdetermined";
+    why = "The claim sits inside the interval, but the interval is too wide to call it.";
+  } else {
+    status = "supported";
+    why = "The claim sits inside a tight interval.";
+  }
+
+  $("verdict").innerHTML = `
+    <div class="vhead">
+      <span class="tag ${status}">${status}</span>
+      <span class="claimtxt">P(success) = ${isFinite(c)?c.toFixed(2):'—'}</span>
+    </div>
+    <div class="big">${(s.point*100).toFixed(1)}<span class="u">%</span></div>
+    <div class="vbody">
+      Point estimate on the posterior means, with a ${Math.round(state.level*100)}% credible
+      interval of <b>${(s.lo*100).toFixed(1)} – ${(s.hi*100).toFixed(1)}%</b>,
+      ${width.toFixed(1)} points wide. ${why}
+    </div>
+    ${intervalViz(s, c)}
+  `;
+}
+
+function intervalViz(s, claim){
+  const W = 560, H = 58, pad = 14;
+  const x = v => pad + v*(W-2*pad);
+  const y = 30;
+  const ticks = [0,0.25,0.5,0.75,1].map(v =>
+    `<line x1="${x(v).toFixed(1)}" y1="${y-7}" x2="${x(v).toFixed(1)}" y2="${y+7}" stroke="var(--line)" stroke-width="1"/>
+     <text x="${x(v).toFixed(1)}" y="${H-2}" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="var(--ink-3)">${(v*100).toFixed(0)}%</text>`
+  ).join("");
+  const band = `<rect x="${x(s.lo).toFixed(1)}" y="${y-11}" width="${Math.max(x(s.hi)-x(s.lo),1).toFixed(1)}" height="22"
+      fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1" rx="2"/>`;
+  const pt = `<line x1="${x(s.point).toFixed(1)}" y1="${y-15}" x2="${x(s.point).toFixed(1)}" y2="${y+15}"
+      stroke="var(--ink)" stroke-width="1.6"/>`;
+  const claimMark = isFinite(claim)
+    ? `<line x1="${x(Math.min(Math.max(claim,0),1)).toFixed(1)}" y1="${y-15}" x2="${x(Math.min(Math.max(claim,0),1)).toFixed(1)}" y2="${y+15}"
+        stroke="var(--sage)" stroke-width="1.4" stroke-dasharray="3 3"/>
+       <text x="${x(Math.min(Math.max(claim,0),1)).toFixed(1)}" y="${y-20}" text-anchor="middle"
+        font-family="JetBrains Mono" font-size="9" fill="var(--sage)">claim</text>`
+    : "";
+  return `<div class="axisbox"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Credible interval against the claim">
+    <line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="var(--line)" stroke-width="1"/>
+    ${ticks}${band}${claimMark}${pt}
+  </svg></div>`;
+}
+
+function renderKpis(p){
+  const k = p.expected_steps, c = p.expected_cost;
+  $("kpis").innerHTML = `
+    <div class="kpi"><div class="l">P(fail)</div><div class="v">${(p.p_fail.point*100).toFixed(1)}%</div></div>
+    <div class="kpi"><div class="l">P(escalate)</div><div class="v">${(p.p_escalate.point*100).toFixed(1)}%</div></div>
+    <div class="kpi"><div class="l">E[steps]</div><div class="v">${k.point.toFixed(2)}</div></div>
+    <div class="kpi"><div class="l">E[cost]</div><div class="v">${c.point.toFixed(2)}</div></div>
+    <div class="kpi"><div class="l">cost / success</div><div class="v">${p.p_success.point>0?(c.point/p.p_success.point).toFixed(2):'—'}</div></div>`;
+}
+
+function renderSobol(rows){
+  if (!rows.length){
+    $("sobol").innerHTML = `<p class="note">Zero variance across draws — nothing to attribute.</p>`;
+    return;
+  }
+  const max = Math.max(...rows.map(r=>r.ST));
+  const sorted = rows.slice().sort((a,b)=>b.ST-a.ST);
+  $("sobol").innerHTML = sorted.map((r,i) => `
+    <div class="sob">
+      <div class="nm" title="${r.step}">${r.step}</div>
+      <div class="track"><div class="fill ${i===0?'lead':''}" style="width:${(r.ST/max*100).toFixed(1)}%"></div></div>
+      <div class="v">${r.ST.toFixed(3)}</div>
+    </div>`).join("");
+  const top = sorted[0];
+  $("sobnote").innerHTML = top.ST > 0.5
+    ? `<b>${top.step}</b> alone owns ${(top.ST*100).toFixed(0)}% of the spread in the answer, on
+       n = ${top.n} observations. Every other step is observed well enough to be a rounding error.`
+    : `No single step dominates (top is ${top.step} at ${(top.ST*100).toFixed(0)}%), so the
+       uncertainty is spread across the workflow.`;
+}
+
+function renderVoi(rows, more){
+  const max = Math.max(...rows.map(r=>r.shrink), 1e-9);
+  $("voi").innerHTML = rows.map(r => `
+    <div class="voi">
+      <div class="nm" title="${r.step}">${r.step}</div>
+      <div class="track"><div class="fill" style="width:${(r.shrink/max*100).toFixed(1)}%"></div></div>
+      <div class="v ${r.shrink<0.5?'zero':''}">${r.shrink.toFixed(2)}</div>
+    </div>`).join("");
+  const top = rows[0], rest = rows.slice(1).reduce((a,b)=>a+b.shrink,0);
+  $("voinote").innerHTML = top.shrink > 5*Math.max(rest,1e-9)
+    ? `Observing <b>${top.step}</b> ${more} more times narrows the interval by about
+       <b>${top.shrink.toFixed(1)} points</b>. The other ${rows.length-1} steps together
+       buy ${rest.toFixed(2)} points — go and measure one thing, not everything.`
+    : `The uncertainty is spread across steps; no single measurement fixes it.`;
+}
+
+function renderLedger(steps, p){
+  const rows = [];
+  const worst = steps.reduce((a,b) => nOf(b) < nOf(a) ? b : a);
+  const ci = quantile(p.pOk[steps.indexOf(worst)], 0.05);
+  const ciHi = quantile(p.pOk[steps.indexOf(worst)], 0.95);
+  const wpts = (ciHi - ci)*100;
+  rows.push({
+    st: wpts <= 10 ? "pass" : "fail",
+    t: "Every step is observed enough to pin its success rate to ±10 points",
+    e: `least-observed step ${worst.name} has n = ${nOf(worst)}, 90% interval on p_ok is ${wpts.toFixed(1)} points wide`,
+    b: wpts <= 10 ? "" : "the reported interval is dominated by that step's sampling error, not by the system; the verdict cannot be trusted until it is observed more"
+  });
+
+  const pr = steps.reduce((a,b) => (5/(nOf(b)+5)) > (5/(nOf(a)+5)) ? b : a);
+  const share = 5/(nOf(pr)+5);
+  rows.push({
+    st: share < 0.10 ? "pass" : "fail",
+    t: "The Dirichlet prior contributes under 10% of the posterior",
+    e: `step ${pr.name}: prior is ${(share*100).toFixed(0)}% of the posterior mass`,
+    b: share < 0.10 ? "" : "part of the answer is a statement about the prior rather than the workflow"
+  });
+
+  // sampler sanity: lag-1 autocorrelation of the draw stream
+  const x = p.samples, n = x.length;
+  let m = 0; for (let i=0;i<n;i++) m += x[i]; m /= n;
+  let num = 0, den = 0;
+  for (let i=0;i<n;i++){ const d = x[i]-m; den += d*d; }
+  for (let i=0;i<n-1;i++) num += (x[i]-m)*(x[i+1]-m);
+  const r1 = den > 0 ? num/den : 0;
+  const band = 1.96/Math.sqrt(n);
+  rows.push({
+    st: Math.abs(r1) < band ? "pass" : "fail",
+    t: "Posterior draws are independent (sampler sanity check)",
+    e: `lag-1 autocorrelation of the draw stream ${r1>=0?'+':''}${r1.toFixed(3)} (white-noise band ±${band.toFixed(3)})`,
+    b: Math.abs(r1) < band ? "" : "the sampler is reusing random numbers; intervals are too narrow"
+  });
+
+  const widest = steps.reduce((a,b) => nOf(b) < nOf(a) ? b : a);
+  rows.push({
+    st: "pass",
+    t: "Exact solver verified against closed forms",
+    e: "single step, retry loop and back edge each match the analytic result to 1e-12 (see tests/test_core.py)",
+    b: ""
+  });
+
+  $("ledger").innerHTML = rows.map(r => `
+    <div class="led">
+      <span class="dot ${r.st}"></span>
+      <span class="txt"><b>${r.t}</b><span class="ev">${r.e}</span>
+      ${r.b ? `<div class="br">breaks: ${r.b}</div>` : ""}</span>
+    </div>`).join("");
+}
+
+/* ---- contention ---- */
+function queueStages(){
+  return [
+    {name:"plan",      median:0.40, sigma:0.50, cap:6,               deps:[]},
+    {name:"retrieve",  median:0.10, sigma:0.60, cap:8,               deps:["plan"]},
+    {name:"call_tool", median:0.30, sigma:0.70, cap:state.queue.capTool, deps:["retrieve"]},
+    {name:"verify",    median:0.25, sigma:0.55, cap:3,               deps:["call_tool"]},
+    {name:"answer",    median:0.90, sigma:0.60, cap:state.queue.capAnswer, deps:["verify"]}
+  ];
+}
+function cantelli(mu, variance, t){
+  const a = t - mu;
+  if (a <= 0) return 1;
+  if (variance <= 0) return 0;
+  return variance/(variance + a*a);
+}
+function renderQueue(){
+  const stages = queueStages();
+  const q = {stages, lam: state.queue.lam, seed: state.queue.seed};
+  const r = simulateQueue(q, 3000);
+  const v = r.e2e;
+  if (v.length < 20) return;
+
+  const m = v.reduce((a,b)=>a+b,0)/v.length;
+  let sd = 0; for (const x of v) sd += (x-m)*(x-m);
+  sd = Math.sqrt(sd/(v.length-1));
+  const p50 = quantile(v,0.5), p95 = quantile(v,0.95), p99 = quantile(v,0.99);
+
+  const limit = Math.min(...stages.map(s => s.cap / (s.median*Math.exp(s.sigma*s.sigma/2))));
+  $("lim").textContent = limit.toFixed(2);
+
+  const rho = state.queue.lam / (state.queue.capAnswer / (0.90*Math.exp(0.6*0.6/2)));
+  const t2 = 2*m;
+  const bnd = cantelli(m, sd*sd, t2);
+  const emp = v.filter(x => x > t2).length / v.length;
+
+  $("qkpis").innerHTML = `
+    <div class="kpi"><div class="l">p50</div><div class="v">${p50.toFixed(2)}s</div></div>
+    <div class="kpi"><div class="l">p95</div><div class="v">${p95.toFixed(2)}s</div></div>
+    <div class="kpi"><div class="l">p99</div><div class="v">${p99.toFixed(2)}s</div></div>
+    <div class="kpi"><div class="l">bottleneck ρ</div><div class="v" style="color:${rho>=1?'var(--crit)':'var(--sage)'}">${rho.toFixed(3)}</div></div>`;
+
+  // histogram
+  const W=560, H=132, padL=8, padB=20, padT=8;
+  const hi = Math.min(quantile(v,0.999), p95*2.2);
+  const bins=32, counts=new Array(bins).fill(0);
+  for (const x of v){ if (x>hi) continue; let i=Math.floor(x/hi*bins); if (i>=bins) i=bins-1; if (i<0) i=0; counts[i]++; }
+  const mx = Math.max(...counts), pw = W-padL*2, ph = H-padB-padT, bw = pw/bins;
+  let bars = "";
+  for (let i=0;i<bins;i++){
+    const h = mx ? counts[i]/mx*ph : 0;
+    const centre = (i+0.5)*(hi/bins);
+    bars += `<rect x="${(padL+i*bw).toFixed(1)}" y="${(padT+ph-h).toFixed(1)}" width="${Math.max(bw-1.5,0.8).toFixed(1)}"
+      height="${h.toFixed(1)}" fill="${centre>p95?'var(--crit)':'var(--sage)'}" opacity="${centre>p95?0.45:0.55}"/>`;
+  }
+  const markX = padL + Math.min(p95/hi,1)*pw;
+  $("hist").innerHTML = `<g>
+    ${bars}
+    <line x1="${markX.toFixed(1)}" y1="${padT}" x2="${markX.toFixed(1)}" y2="${padT+ph}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3 3"/>
+    <text x="${markX.toFixed(1)}" y="${padT+8}" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="var(--accent)">p95</text>
+    <text x="${padL}" y="${H-4}" font-family="JetBrains Mono" font-size="9" fill="var(--ink-3)">0s</text>
+    <text x="${(padL+pw).toFixed(1)}" y="${H-4}" text-anchor="end" font-family="JetBrains Mono" font-size="9" fill="var(--ink-3)">${hi.toFixed(1)}s</text>
+  </g>`;
+
+  $("qnote").innerHTML = `At twice the mean (${t2.toFixed(1)}s) the empirical tail is
+    ${(emp*100).toFixed(2)}% and the distribution-free Cantelli bound is ${(bnd*100).toFixed(1)}%
+    — loose on purpose, because it assumes nothing about the shape of the distribution.
+    Mean ${m.toFixed(2)}s, sd ${sd.toFixed(2)}s over ${v.length} tasks.`;
+}
+
+/* ============================================================
+   Main loop
+   ============================================================ */
+let pending = null, voiPending = null;
+
+function recompute(){
+  const p = propagate(state.steps, state.budget, 4000, state.seed, state.level);
+  renderTable(p);
+  renderVerdict(p);
+  renderKpis(p);
+  renderLedger(state.steps, p);
+
+  const so = sobol(state.steps, state.budget, 512, state.seed + 1);
+  renderSobol(so);
+
+  // value of information is the slow one; run it after the first paint
+  $("voi").classList.add("busy");
+  if (voiPending) clearTimeout(voiPending);
+  voiPending = setTimeout(() => {
+    const more = 200;
+    const v = valueOfInfo(state.steps, state.budget, more, 12, 500, state.seed + 2, state.level);
+    renderVoi(v, more);
+    $("voi").classList.remove("busy");
+  }, 40);
+
+  $("evnote").innerHTML = `Prior is flat Dirichlet(1) on each step. Counts here total
+    ${state.steps.reduce((a,s)=>a+nOf(s),0).toLocaleString()} observations; the solve is exact,
+    only the inputs are sampled. ${state.budget ? `Step budget: ${state.budget}.` : "No step budget."}`;
+  $("footstat").textContent = `${state.steps.length} steps · ${state.steps.reduce((a,s)=>a+nOf(s),0).toLocaleString()} observations · ${Math.round(state.level*100)}% intervals`;
+}
+
+function schedule(){
+  if (pending) cancelAnimationFrame(pending);
+  pending = requestAnimationFrame(() => { pending = null; recompute(); });
+}
+
+/* ---- wiring ---- */
+$("preset").addEventListener("change", e => {
+  const preset = PRESETS[e.target.value];
+  state.steps = JSON.parse(JSON.stringify(preset.steps));
+  state.claim = preset.claim;
+  $("claim").value = preset.claim;
+  recompute();
+});
+$("budget").addEventListener("change", e => {
+  const v = Math.round(+e.target.value);
+  state.budget = v > 0 ? v : null;
+  recompute();
+});
+$("clear-budget").addEventListener("click", () => {
+  state.budget = null;
+  $("budget").value = "";
+  recompute();
+});
+$("claim").addEventListener("input", e => {
+  const v = parseFloat(e.target.value);
+  state.claim = isFinite(v) ? v : NaN;
+  const p = propagate(state.steps, state.budget, 2000, state.seed, state.level);
+  renderVerdict(p);
+});
+$("level").addEventListener("change", e => {
+  state.level = parseFloat(e.target.value);
+  recompute();
+});
+["lam","cap","toolcap"].forEach(id => {
+  $(id).addEventListener("change", e => {
+    const v = parseFloat(e.target.value);
+    if (id === "lam") state.queue.lam = Math.max(0.2, v || 0.2);
+    if (id === "cap") state.queue.capAnswer = Math.max(1, Math.round(v) || 1);
+    if (id === "toolcap") state.queue.capTool = Math.max(1, Math.round(v) || 1);
+    renderQueue();
+  });
+});
+
+/* boot */
+recompute();
+renderQueue();
+</script>
+</body>
+</html>

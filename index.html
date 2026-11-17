@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Preflight — reliability lab for agent workflows</title>
 <meta name="description" content="Counts in, credible intervals out. Exact Markov reliability maths for agent workflows, with the uncertainty in the counts carried through the answer.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://saumyajitghosh-collab.github.io/preflight/">
+<meta property="og:title" content="Preflight — you know counts, not success rates">
+<meta property="og:description" content="An agent workflow is an absorbing Markov chain. Solve it exactly, carry the uncertainty in the observed counts through the solve, and report an interval with a verdict instead of a number. Five steps, one of them observed 40 times: that step owns 95% of the uncertainty.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Preflight — you know counts, not success rates">
+<meta name="twitter:description" content="Exact Markov reliability maths for agent workflows. Counts in, credible intervals out.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -240,6 +247,17 @@
     <a href="https://github.com/saumyajitghosh-collab/preflight" target="_blank" rel="noopener">Source</a>
     <a href="#how" >MCP tools</a>
   </div>
+
+  <noscript>
+    <div style="border:1px solid var(--line);background:var(--accent-soft);padding:14px 18px;margin:0 0 20px;font-size:14px">
+      <b>The interactive lab needs JavaScript.</b> The headline result, computed by the Python
+      library on the reference RAG workflow: P(success) = 0.846 with a 90% credible interval of
+      [0.761, 0.908], 14.7 points wide. A claim of 85% is therefore <b>underdetermined</b>.
+      The Verify step has been observed 40 times and owns 95% of the output variance; 200 more
+      Verify observations narrow the interval to 6.7 points, and 200 more of any other step
+      changes nothing measurable.
+    </div>
+  </noscript>
 
   <header class="hero">
     <div class="eyebrow">reliability mathematics · before deployment</div>
